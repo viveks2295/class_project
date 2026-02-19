@@ -5,7 +5,9 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t flaskapp .'
+                dir('backend2') {
+                    sh 'docker build -t flaskapp .'
+                }
             }
         }
 
