@@ -2,73 +2,46 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "singhjii/flask-ci-app"   
-        IMAGE_TAG = "latest"
-        CONTAINER_NAME = "flaskapp"
-        REPO_URL = "https://github.com/viveks2295/class_project"
-        BRANCH = "main"
+        DOCKER_IMAGE = "singhjii/flask-ci-app"
+        DOCKER_TAG = "latest"
+        EC2_IP = "YOUR_EC2_PUBLIC_IP"
     }
 
     stages {
 
-        stage('Clone Repository') {
+        stage('Clone Code') {
             steps {
-                git branch: "${BRANCH}", url: "${REPO_URL}"
+                git 'https://github.com/YOUR_USERNAME/YOUR_REPO.git'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                dir('backend2') {
-                    sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+                sh 'docker build -t $DOCKER_IMAGE:$DOCKER_TAG .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                withDockerRegistry([credentialsId: 'dockerhub-creds', url: '']) {
+                    sh 'docker push $DOCKER_IMAGE:$DOCKER_TAG'
                 }
             }
         }
 
-        stage('Login to Docker Hub') {
+        stage('Deploy to EC2') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    '''
+                sshagent(['ec2-server-key']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ec2-user@$EC2_IP '
+                        docker pull $DOCKER_IMAGE:$DOCKER_TAG &&
+                        docker stop flask-app || true &&
+                        docker rm flask-app || true &&
+                        docker run -d -p 80:5000 --name flask-app $DOCKER_IMAGE:$DOCKER_TAG
+                    '
+                    """
                 }
             }
-        }
-
-        stage('Push Image to Docker Hub') {
-            steps {
-                sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
-            }
-        }
-
-        stage('Deploy Latest Container') {
-            steps {
-                sh '''
-                docker stop $CONTAINER_NAME || true
-                docker rm $CONTAINER_NAME || true
-                docker pull $IMAGE_NAME:$IMAGE_TAG
-                docker run -d -p 80:5000 --name $CONTAINER_NAME $IMAGE_NAME:$IMAGE_TAG
-                '''
-            }
-        }
-
-        stage('Cleanup Docker Images') {
-            steps {
-                sh 'docker image prune -f'
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "Deployment Successful"
-        }
-        failure {
-            echo "Deployment Failed"
         }
     }
 }
