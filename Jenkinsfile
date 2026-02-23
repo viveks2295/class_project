@@ -9,13 +9,11 @@ pipeline {
 
     stages {
 
-stage('Clone Code') {
-    steps {
-        git branch: 'main',
-            credentialsId: 'github-creds',
-            url: 'https://github.com/viveks2295/class_project.git'
-    }
-}
+        stage('Clone Code') {
+            steps {
+                git 'https://github.com/viveks2295/class_project.git'
+            }
+        }
 
         stage('Build Docker Image') {
             steps {
